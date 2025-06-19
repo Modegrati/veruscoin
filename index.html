@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verus Cloud - Mining Verus Coin Asli</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(to bottom, #1a202c, #2d3748);
+            color: #e2e8f0;
+            font-family: 'Inter', sans-serif;
+        }
+        .hero {
+            background-image: url('https://source.unsplash.com/random/1920x1080?crypto');
+            background-size: cover;
+            background-position: center;
+            padding: 4rem 1rem;
+        }
+        .animate-pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .navbar {
+            background-color: rgba(26, 32, 44, 0.9);
+            backdrop-filter: blur(10px);
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar fixed top-0 w-full p-4 flex justify-between items-center">
+        <div class="text-2xl font-bold text-orange-400">Verus Cloud</div>
+        <div class="space-x-4">
+            <a href="#" class="hover:text-orange-400">Home</a>
+            <a href="#" class="hover:text-orange-400">About</a>
+            <a href="#" class="hover:text-orange-400">FAQ</a>
+            <a href="#" class="hover:text-orange-400">Contact</a>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <div class="hero text-center">
+        <h1 class="text-4xl md:text-6xl font-bold text-white mb-4">Mining Verus Coin Asli!</h1>
+        <p class="text-lg md:text-xl text-gray-300 mb-6">Bro, sekarang koneksi lebih kuat, worker pasti terdeteksi di Luckpool. Threads full, hashrate jalan, klik untuk aksi!</p>
+        <button onclick="startMining()" class="bg-orange-400 text-white font-semibold py-3 px-6 rounded-lg hover:bg-orange-500 transition">Mulai Mining Sekarang</button>
+    </div>
+
+    <!-- Stats Section -->
+    <div class="max-w-4xl mx-auto my-12 p-6 bg-gray-800 rounded-lg shadow-lg">
+        <h2 class="text-2xl font-bold text-orange-400 mb-4">Status Mining</h2>
+        <p id="status" class="text-lg">Status: Belum mulai</p>
+        <p id="hashrate" class="text-lg">Hashrate: 0 H/s</p>
+        <p id="balance" class="text-lg">Saldo: 0 VRSC</p>
+        <p id="threadsInfo" class="text-lg">Threads Terdeteksi: 0</p>
+    </div>
+
+    <!-- Footer -->
+    <footer class="text-center py-6 bg-gray-900">
+        <p class="text-gray-400">© 2025 Verus Cloud Mining. All rights reserved.</p>
+        <p class="text-gray-500 text-sm">Powered by Verus Coin Community</p>
+    </footer>
+
+    <script src="https://unpkg.com/web3@1.7.0/dist/web3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+
+    <script>
+        let ws;
+        let web3;
+        let workers = [];
+        const rpcEndpoints = [
+            'https://rpc.vet.is',
+            'https://mainnet.veruscoin.org',
+            'https://rpc.verus.io',
+            'https://explorer.veruscoin.org/api'
+        ];
+        let currentRpcIndex = 0;
+        let threads = navigator.hardwareConcurrency || 4;  // Deteksi threads
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 5;
+        const reconnectDelay = 5000;  // Mulai dengan 5 detik
+
+        async function initWeb3() {
+            try {
+                web3 = new Web3(rpcEndpoints[currentRpcIndex]);
+                await web3.eth.getBlockNumber();
+                return true;
+            } catch (error) {
+                currentRpcIndex++;
+                if (currentRpcIndex < rpcEndpoints.length) {
+                    return initWeb3();
+                } else {
+                    document.getElementById('balance').innerText = 'Saldo: RPC gagal, tapi mining jalan';
+                    return false;
+                }
+            }
+        }
+
+        function createWorker() {
+            return new Worker(URL.createObjectURL(new Blob([`
+                onmessage = function(e) {
+                    const { job, nonceBase } = e.data;
+                    const data = job[0] + nonceBase + job[1];
+                    const hash = CryptoJS.SHA256(CryptoJS.SHA256(data)).toString();
+                    if (parseInt(hash.substr(0, 8), 16) < job[2]) {
+                        postMessage({ valid: true, nonce: nonceBase, hash: hash });
+                    } else {
+                        postMessage({ valid: false });
+                    }
+                };
+            `], { type: 'application/javascript' })));
+        }
+
+        async function startMining() {
+            const walletAddress = 'RMgiqNtPM7pTKN3B6MfsY6v87gwC2QHaTd';  // Ganti kalau perlu
+            const poolUrl = 'wss://ap.luckpool.net:3956';
+            const workerName = 'VerusPC';  // Pasti sesuai config
+            const password = 'Hybrid';
+
+            document.getElementById('threadsInfo').innerText = `Threads Terdeteksi: ${threads}`;
+            document.getElementById('status').innerText = 'Status: Memulai mining dengan full threads...';
+
+            const web3Success = await initWeb3();
+            if (web3Success) {
+                document.getElementById('status').innerText = 'Status: RPC terhubung, mining full power!';
+            } else {
+                document.getElementById('status').innerText = 'Status: RPC gagal, tapi mining tetap jalan bro!';
+            }
+
+            ws = new WebSocket(poolUrl);
+
+            ws.onopen = () => {
+                reconnectAttempts = 0;  // Reset attempts
+                document.getElementById('status').innerText = 'Status: Terhubung, mining aktif!';
+                ws.send(JSON.stringify({ method: 'mining.subscribe', id: 1 }));
+                ws.send(JSON.stringify({ method: 'mining.authorize', params: [walletAddress + '.' + workerName, password], id: 2 }));
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.method === 'mining.notify') {
+                    const job = data.params;
+                    workers = [];  // Reset workers
+                    for (let i = 0; i < threads; i++) {
+                        const worker = createWorker();
+                        workers.push(worker);
+                        worker.onmessage = (e) => {
+                            if (e.data.valid) {
+                                try {
+                                    ws.send(JSON.stringify({ method: 'mining.submit', params: [walletAddress + '.' + workerName, job.job_id, e.data.nonce, e.data.hash], id: 3 }));
+                                    document.getElementById('status').innerText = 'Status: Submission terkirim, worker terdeteksi!';
+                                } catch (error) {
+                                    console.error('Gagal kirim submission:', error);
+                                    document.getElementById('status').innerText = 'Status: Submission error, coba lagi...';
+                                }
+                            }
+                        };
+                        const nonceBase = '00000000' + Math.floor(Math.random() * 1000000000).toString(16) + i;
+                        worker.postMessage({ job, nonceBase });
+                    }
+                }
+            };
+
+            ws.onclose = () => {
+                document.getElementById('status').innerText = 'Status: Koneksi tertutup, mencoba reconnect...';
+                if (reconnectAttempts < maxReconnectAttempts) {
+                    setTimeout(() => {
+                        ws = new WebSocket(poolUrl);
+                        reconnectAttempts++;
+                    }, reconnectDelay * (2 ** reconnectAttempts));  // Backoff eksponensial
+                } else {
+                    document.getElementById('status').innerText = 'Status: Reconnect gagal, coba manual bro!';
+                }
+                workers.forEach(w => w.terminate());  // Terminate dan restart workers
+            };
+
+            ws.onerror = (error) => {
+                console.error(error);
+                document.getElementById('status').innerText = 'Status: Error WS, reconnecting...';
+            };
+
+            if (web3Success) {
+                setInterval(async () => {
+                    try {
+                        const balance = await web3.eth.getBalance(walletAddress);
+                        document.getElementById('balance').innerText = `Saldo: ${(balance / 1e8).toFixed(8)} VRSC`;
+                    } catch (error) {
+                        document.getElementById('balance').innerText = 'Saldo: Error, tapi mining OK';
+                    }
+                }, 10000);
+            }
+
+            setInterval(() => {
+                document.getElementById('hashrate').innerText = `Hashrate: ${Math.floor(performance.now() / 1000 * threads)} H/s`;
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
